@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weld-ml-service"
+version = "0.1.0"
+description = "FastAPI prediction service for laser-weld quality classification — self-contained, Docker-ready, CI-tested."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Dmitry Shurkhai", email = "etozhejimmy@gmail.com" }]
+keywords = ["mlops", "fastapi", "manufacturing", "weld-quality", "docker", "aerospace"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Framework :: FastAPI",
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.6.0",
+    "numpy>=1.24,<2",
+    "scikit-learn>=1.3.0",
+    "joblib>=1.4.0",
+    "prometheus-client>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "httpx>=0.27.0", "pytest-cov>=4.0", "ruff>=0.4.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
