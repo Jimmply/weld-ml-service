@@ -101,7 +101,7 @@ weld-ml-service/
 │   └── model.py                   # sklearn RF + synthetic data generator
 ├── scripts/train_baseline.py      # trains + saves models/weld_rf.joblib
 ├── models/weld_rf.joblib          # committed (<1 MB — repo is self-contained)
-├── tests/test_api.py              # 9 smoke tests via FastAPI TestClient
+├── tests/test_api.py              # 10 smoke tests via FastAPI TestClient
 ├── Dockerfile                     # multi-stage, non-root, healthcheck
 ├── docker-compose.yml
 ├── Makefile

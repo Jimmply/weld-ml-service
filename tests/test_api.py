@@ -95,6 +95,12 @@ def test_predict_batch_rejects_oversized_batch(client: TestClient):
     assert r.status_code == 422
 
 
+def test_predict_batch_rejects_empty_items(client: TestClient):
+    # Schema sets min_length=1 — empty batches should be a 422, not a server-side crash
+    r = client.post("/predict/batch", json={"items": []})
+    assert r.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # /metrics
 # ---------------------------------------------------------------------------
