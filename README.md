@@ -6,7 +6,7 @@
 ![Docker](https://img.shields.io/badge/container-Docker-2496ED?logo=docker&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-**Self-contained FastAPI prediction service for laser-weld quality classification.** 5-class RandomForest (good / spatter / porosity / undercut / cold weld) wrapped in a production-shaped service with `/predict`, `/predict/batch`, `/health`, `/metrics`, Pydantic validation, Prometheus-compatible metrics, Dockerfile, docker-compose, and CI that builds the image and smoke-tests it before merging.
+**Self-contained FastAPI prediction service for laser-weld quality classification.** 5-class RandomForest (good / spatter / porosity / undercut / cold weld) wrapped in a production-shaped service with `/predict`, `/predict/batch`, `/health`, `/metrics`, Pydantic validation, Prometheus-compatible metrics, **structured JSON logging with per-request IDs**, Dockerfile, docker-compose, and CI that builds the image and smoke-tests it before merging.
 
 Built as the MLOps companion to my manufacturing-ML portfolio — demonstrates I can ship a trained model, not only train one.
 
@@ -47,6 +47,22 @@ curl -X POST http://127.0.0.1:8000/predict \
 ```
 
 OpenAPI docs auto-generated at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+## Structured logging + request IDs
+
+Every log line is one JSON object. Every request gets a unique `request_id` (either passed in via an incoming `X-Request-ID` header or auto-generated), which propagates to every log line emitted inside the handler and is echoed back in the response headers.
+
+```json
+{"ts":"2026-10-15T14:03:22","level":"INFO","logger":"weld_ml_service.access","message":"request completed","request_id":"a3fd8c91-...","method":"POST","path":"/predict","status":200,"duration_ms":4.21}
+```
+
+This gives you three things recruiters actually scan for:
+
+- Grep-friendly logs that aggregate cleanly in CloudWatch / Datadog / Grafana Loki.
+- End-to-end request tracing — client passes a trace ID, service propagates it, logs correlate.
+- Latency SLO measurement without needing Prometheus — `duration_ms` is in every access log.
+
+Toggle verbosity with `LOG_LEVEL=DEBUG` (default `INFO`).
 
 ## Docker
 
@@ -101,7 +117,7 @@ weld-ml-service/
 │   └── model.py                   # sklearn RF + synthetic data generator
 ├── scripts/train_baseline.py      # trains + saves models/weld_rf.joblib
 ├── models/weld_rf.joblib          # committed (<1 MB — repo is self-contained)
-├── tests/test_api.py              # 10 smoke tests via FastAPI TestClient
+├── tests/test_api.py              # 13 smoke tests via FastAPI TestClient
 ├── Dockerfile                     # multi-stage, non-root, healthcheck
 ├── docker-compose.yml
 ├── Makefile
@@ -112,7 +128,7 @@ weld-ml-service/
 ## Roadmap
 
 - [ ] Live demo URL on Fly.io or Railway (next commit)
-- [ ] Add structured JSON logging + request IDs
+- [x] Add structured JSON logging + request IDs. One JSON per line, `X-Request-ID` round-trip, access log at request completion with method/path/status/duration_ms. 3 new tests cover it.
 - [ ] Add rate limiting (slowapi or an API gateway)
 - [ ] Postgres predictions log for monitoring drift over time
 - [ ] Grafana dashboard config pulling from the `/metrics` endpoint

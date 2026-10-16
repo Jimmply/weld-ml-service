@@ -122,3 +122,52 @@ def test_openapi_schema_is_served(client: TestClient):
     assert schema["info"]["title"] == "Weld ML Service"
     assert "/predict" in schema["paths"]
     assert "/predict/batch" in schema["paths"]
+
+
+# ---------------------------------------------------------------------------
+# Structured logging + request IDs
+# ---------------------------------------------------------------------------
+
+def test_response_includes_request_id_header(client: TestClient):
+    r = client.get("/health")
+    assert "x-request-id" in r.headers
+    # Looks like a UUID
+    rid = r.headers["x-request-id"]
+    assert len(rid) >= 8  # some non-empty id
+
+
+def test_client_can_supply_its_own_request_id(client: TestClient):
+    custom = "abc-123-trace-id"
+    r = client.get("/health", headers={"x-request-id": custom})
+    assert r.status_code == 200
+    assert r.headers["x-request-id"] == custom
+
+
+def test_access_log_is_structured_json(client: TestClient, caplog):
+    import json
+    import logging as pylog
+    from weld_ml_service.logging_config import JsonFormatter
+
+    # Attach a capture handler with the service's JSON formatter so we see
+    # exactly the lines the real service would emit.
+    captured = []
+
+    class _Capture(pylog.Handler):
+        def emit(self, record):
+            captured.append(JsonFormatter().format(record))
+
+    handler = _Capture()
+    access_logger = pylog.getLogger("weld_ml_service.access")
+    access_logger.addHandler(handler)
+    try:
+        client.get("/health")
+    finally:
+        access_logger.removeHandler(handler)
+
+    assert captured, "no access log line was emitted"
+    payload = json.loads(captured[-1])
+    assert payload["method"] == "GET"
+    assert payload["path"] == "/health"
+    assert payload["status"] == 200
+    assert "duration_ms" in payload
+    assert payload["request_id"] != "-"

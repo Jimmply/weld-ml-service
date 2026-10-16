@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from prometheus_client import Counter, Histogram, generate_latest
 
 from . import __version__
+from .logging_config import configure_logging, request_id_var
 from .model import MODEL_PATH, ModelBundle, load_bundle, save_bundle, train_bundle
 from .schemas import (
     BatchPredictionResponse,
@@ -22,7 +25,9 @@ from .schemas import (
     WeldFeaturesBatch,
 )
 
+configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("weld_ml_service.access")
 
 # Prometheus metrics — small set, deliberately
 PREDICT_COUNTER = Counter(
@@ -72,6 +77,34 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def request_id_and_access_log(request: Request, call_next):
+    """Attach a request_id to every log line + emit a single access log at the end."""
+    rid = request.headers.get("x-request-id") or str(uuid.uuid4())
+    token = request_id_var.set(rid)
+    start = time.perf_counter()
+    status = 500   # pessimistic default if the handler raises
+    response: Response | None = None
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        duration_ms = (time.perf_counter() - start) * 1000
+        access_logger.info(
+            "request completed",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status": status,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
+        if response is not None:
+            response.headers["x-request-id"] = rid
+        request_id_var.reset(token)
 
 
 def _predict_one(features: WeldFeatures, bundle: ModelBundle) -> PredictionResponse:
